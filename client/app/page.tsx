@@ -49,6 +49,12 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const [selectedShape, setSelectedShape] = useState<
+    "rectangle" | "circle" | "triangle"
+  >("rectangle");
+
+  const [selectedColor, setSelectedColor] = useState<string>("#3b82f6");
+
   // Handler: New Slide
   const handleNewSlide = () => {
     const newSlide: Slide = {
@@ -189,11 +195,11 @@ export default function App() {
   };
 
   const handleShapeChange = (shape: "rectangle" | "circle" | "triangle") => {
-    console.log("Shape changed to:", shape);
+    setSelectedShape(shape);
   };
 
   const handleColorChange = (color: string) => {
-    console.log("Color changed to:", color);
+    setSelectedColor(color);
   };
 
   return (
@@ -318,6 +324,8 @@ export default function App() {
             currentSlide={slides[currentSlide]}
             onSlideUpdate={handleSlideUpdate}
             onToolChange={handleToolSelect}
+            selectedShape={selectedShape}
+            selectedColor={selectedColor}
           />
         </div>
 
