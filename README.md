@@ -190,6 +190,14 @@ codeclash-hackathon/          # Tentative name
 |----------|-------------|----------|
 | `GEMINI_API_KEY` | Google Gemini AI API key | Yes |
 
+## 🚧 In Progress
+- [ ] Frontend-backend integration
+- [ ] Voice recognition implementation
+- [ ] Advanced slide layouts
+- [ ] Export functionality
+- [ ] User authentication
+- [ ] Database integration
+
 
 ## 🙏 Acknowledgments
 
