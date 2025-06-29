@@ -72,9 +72,13 @@ export function VoiceInput({ onVoiceResult, onVoiceResponse, disabled }: VoiceIn
         <Button
           onClick={toggleListening}
           disabled={disabled}
-          variant={isListening ? "destructive" : "outline"}
+          variant="outline"
           size="sm"
-          className="flex-1 h-8"
+          className={`flex-1 h-8 transition-all duration-200 ${
+            isListening 
+              ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600' 
+              : 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600 hover:border-gray-500'
+          }`}
         >
           {isListening ? (
             <>

@@ -10,8 +10,13 @@ from dotenv import load_dotenv
 from io import BytesIO
 try:
     from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    PPTX_AVAILABLE = True
 except ImportError:
     Presentation = None
+    PPTX_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
@@ -230,6 +235,134 @@ def convert_to_slide_elements(ai_response, color_theme="blue"):
     
     return elements
 
+def hex_to_rgb(hex_color):
+    """Convert hex color to RGB tuple"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+def create_enhanced_pptx(slides_data):
+    """Create an enhanced PPTX with better formatting"""
+    if not PPTX_AVAILABLE:
+        raise ImportError("python-pptx is not available")
+    
+    prs = Presentation()
+    
+    # Remove default slide if exists
+    if len(prs.slides) > 0:
+        xml_slides = prs.slides._sldIdLst
+        slides = list(xml_slides)
+        for sld in slides:
+            xml_slides.remove(sld)
+    
+    for slide_data in slides_data:
+        # Use title and content layout
+        slide_layout = prs.slide_layouts[1]  # Title and Content
+        slide = prs.slides.add_slide(slide_layout)
+        
+        # Set slide title
+        title = slide_data.get('title', 'Slide')
+        if slide.shapes.title:
+            slide.shapes.title.text = title
+            # Format title
+            title_paragraph = slide.shapes.title.text_frame.paragraphs[0]
+            title_paragraph.font.size = Pt(32)
+            title_paragraph.font.bold = True
+            
+            # Apply color theme if available
+            color_theme = slide_data.get('color_theme', 'blue')
+            theme_colors = COLOR_THEMES.get(color_theme, COLOR_THEMES['blue'])
+            try:
+                rgb = hex_to_rgb(theme_colors['primary'])
+                title_paragraph.font.color.rgb = RGBColor(*rgb)
+            except:
+                pass  # Use default color if conversion fails
+        
+        # Process slide elements
+        elements = slide_data.get('elements', [])
+        
+        # Find content placeholder
+        content_placeholder = None
+        for shape in slide.placeholders:
+            if shape.placeholder_format.idx == 1:  # Content placeholder
+                content_placeholder = shape
+                break
+        
+        # Collect all text content
+        text_elements = []
+        bullet_elements = []
+        
+        for element in elements:
+            if element.get('type') == 'text':
+                content = element.get('content', '')
+                if '•' in content:
+                    # This is bullet content
+                    bullet_points = [line.strip('• ').strip() for line in content.split('\n') if line.strip()]
+                    bullet_elements.extend(bullet_points)
+                else:
+                    text_elements.append(content)
+            elif element.get('type') == 'bulletList':
+                content = element.get('content', '')
+                bullet_points = [line.strip('• ').strip() for line in content.split('\n') if line.strip()]
+                bullet_elements.extend(bullet_points)
+        
+        # Add content to placeholder
+        if content_placeholder and hasattr(content_placeholder, 'text_frame'):
+            text_frame = content_placeholder.text_frame
+            text_frame.clear()
+            
+            # Add regular text first
+            if text_elements:
+                for i, text in enumerate(text_elements):
+                    if i == 0:
+                        p = text_frame.paragraphs[0]
+                    else:
+                        p = text_frame.add_paragraph()
+                    p.text = text
+                    p.font.size = Pt(16)
+                    p.space_after = Pt(12)
+            
+            # Add bullet points
+            if bullet_elements:
+                for i, bullet in enumerate(bullet_elements):
+                    if not text_elements and i == 0:
+                        p = text_frame.paragraphs[0]
+                    else:
+                        p = text_frame.add_paragraph()
+                    p.text = bullet
+                    p.level = 0  # First level bullet
+                    p.font.size = Pt(14)
+                    p.space_after = Pt(6)
+        
+        # Handle table elements
+        table_elements = [el for el in elements if el.get('type') == 'table']
+        if table_elements:
+            for table_element in table_elements:
+                table_data = table_element.get('tableData', {})
+                rows = table_data.get('rows', 2)
+                cols = table_data.get('cols', 2)
+                cells = table_data.get('cells', [])
+                
+                if cells:
+                    # Add table to slide
+                    left = Inches(1)
+                    top = Inches(3)
+                    width = Inches(8)
+                    height = Inches(2)
+                    
+                    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+                    
+                    # Fill table with data
+                    for row_idx, row_data in enumerate(cells[:rows]):
+                        for col_idx, cell_data in enumerate(row_data[:cols]):
+                            if row_idx < len(table.rows) and col_idx < len(table.columns):
+                                cell = table.cell(row_idx, col_idx)
+                                cell.text = str(cell_data)
+                                # Format cell text
+                                for paragraph in cell.text_frame.paragraphs:
+                                    paragraph.font.size = Pt(12)
+    
+    return prs
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -237,6 +370,7 @@ def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "gemini_configured": model is not None,
+        "pptx_available": PPTX_AVAILABLE,
         "version": "1.0.0"
     })
 
@@ -349,60 +483,43 @@ def create_presentation():
 
 @app.route('/api/export-pptx', methods=['POST'])
 def export_pptx():
-    """Export slides as a PPTX file"""
-    if Presentation is None:
-        return jsonify({"error": "python-pptx is not installed on the server."}), 500
+    """Export slides as a PPTX file with enhanced formatting"""
+    if not PPTX_AVAILABLE:
+        return jsonify({
+            "error": "PPTX export is not available. Please install python-pptx: pip install python-pptx"
+        }), 500
+    
     try:
         data = request.get_json()
         slides_data = data.get('slides', [])
-        prs = Presentation()
-        # Remove default slide
-        if len(prs.slides) > 0:
-            xml_slides = prs.slides._sldIdLst
-            slides = list(xml_slides)
-            for sld in slides:
-                xml_slides.remove(sld)
-        for slide in slides_data:
-            sld = prs.slides.add_slide(prs.slide_layouts[1])  # Title and Content
-            title = slide.get('title', 'Slide')
-            elements = slide.get('elements', [])
-            if sld.shapes.title:
-                sld.shapes.title.text = title
-            # Find bullet points in elements
-            bullet_points = []
-            for el in elements:
-                if el.get('type') == 'text' and '•' in el.get('content', ''):
-                    bullet_points.extend([line.strip('• ').strip() for line in el['content'].split('\n') if line.strip()])
-            # Add content to placeholder if it exists
-            content_shape = None
-            for shape in sld.placeholders:
-                if shape.placeholder_format.idx == 1:
-                    content_shape = shape
-                    break
-            if content_shape is not None and hasattr(content_shape, 'text_frame'):
-                tf = content_shape.text_frame
-                tf.clear()
-                if bullet_points:
-                    for idx, point in enumerate(bullet_points):
-                        if idx == 0:
-                            tf.text = point
-                        else:
-                            p = tf.add_paragraph()
-                            p.text = point
-                else:
-                    tf.text = slide.get('content', '')
+        
+        if not slides_data:
+            return jsonify({"error": "No slides provided"}), 400
+        
+        logger.info(f"Exporting {len(slides_data)} slides to PPTX")
+        
+        # Create enhanced PPTX
+        prs = create_enhanced_pptx(slides_data)
+        
+        # Save to BytesIO
         pptx_io = BytesIO()
         prs.save(pptx_io)
         pptx_io.seek(0)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"slideflow_presentation_{timestamp}.pptx"
+        
         return send_file(
             pptx_io,
             mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',
             as_attachment=True,
-            download_name='presentation.pptx'
+            download_name=filename
         )
+        
     except Exception as e:
         logger.error(f"Error exporting PPTX: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"PPTX export failed: {str(e)}"}), 500
 
 # Error handlers
 @app.errorhandler(404)
@@ -418,5 +535,6 @@ if __name__ == '__main__':
     print("📊 Frontend should connect to: http://localhost:5000")
     print("🔗 API endpoints available at: http://localhost:5000/api/")
     print(f"🤖 Gemini AI: {'✅ Connected' if model else '❌ Not configured'}")
+    print(f"📄 PPTX Export: {'✅ Available' if PPTX_AVAILABLE else '❌ Not available (install python-pptx)'}")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
