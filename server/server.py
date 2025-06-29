@@ -26,16 +26,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"])
 
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
+if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-pro')
     logger.info("✅ Gemini AI configured successfully")
 else:
-    logger.warning("⚠️ GEMINI_API_KEY not found in environment variables")
+    logger.warning("⚠️ GEMINI_API_KEY not found or not configured")
     model = None
 
 # In-memory storage for demo (use database in production)
