@@ -48,12 +48,6 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
 
   return (
     <div className="space-y-4">
-      {/* AI Assistant Header - Made Larger */}
-      <div className="text-center mb-4">
-        <h2 className="text-lg font-semibold text-white mb-1">AI Assistant</h2>
-        <p className="text-sm text-gray-400">Multi-Provider AI Generation</p>
-      </div>
-
       {/* AI Provider Selection */}
       <AIProviderSelector
         selectedProvider={selectedProvider}
@@ -96,7 +90,7 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
             variant="ghost"
             size="sm"
             onClick={() => setShowAttachments(!showAttachments)}
-            className={`text-gray-400 hover:text-white transition-colors ${
+            className={`text-gray-400 hover:text-white hover:bg-gray-700 transition-colors ${
               showAttachments ? 'bg-gray-700' : ''
             }`}
           >
@@ -151,28 +145,6 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
           </div>
         </div>
       )}
-
-      {/* Quick Actions - Only 2 buttons */}
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setPrompt("Business presentation with sales statistics and growth metrics")}
-          disabled={isGenerating}
-          className="text-xs"
-        >
-          📊 Business Report
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setPrompt("Marketing strategy presentation with campaign analysis")}
-          disabled={isGenerating}
-          className="text-xs"
-        >
-          📈 Marketing Strategy
-        </Button>
-      </div>
     </div>
   );
 }

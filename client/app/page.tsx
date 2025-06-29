@@ -617,9 +617,9 @@ export default function App() {
                 <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-md flex items-center justify-center">
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
-                <h2 className="font-medium text-sm">AI Assistant</h2>
+                <h2 className="font-semibold text-xl">AI Assistant</h2>
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-sm text-gray-400">
                 Multi-Provider AI Generation
               </p>
             </div>
