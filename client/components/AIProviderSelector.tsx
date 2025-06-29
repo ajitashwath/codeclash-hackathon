@@ -16,25 +16,25 @@ interface AIProviderSelectorProps {
 
 const AI_PROVIDERS = {
   gemini: {
-    name: 'Google Gemini',
+    name: 'Gemini',
     icon: Sparkles,
     color: 'bg-blue-500',
-    description: 'Google\'s advanced AI model',
-    features: ['Fast generation', 'Creative content', 'Multi-modal']
+    description: 'Google\'s AI model',
+    features: ['Fast', 'Creative']
   },
   gpt: {
-    name: 'OpenAI GPT',
+    name: 'GPT',
     icon: Brain,
     color: 'bg-green-500',
-    description: 'OpenAI\'s powerful language model',
-    features: ['High quality', 'Detailed content', 'Professional tone']
+    description: 'OpenAI\'s model',
+    features: ['Quality', 'Detailed']
   },
   claude: {
-    name: 'Anthropic Claude',
+    name: 'Claude',
     icon: Zap,
     color: 'bg-purple-500',
-    description: 'Anthropic\'s helpful AI assistant',
-    features: ['Thoughtful responses', 'Structured content', 'Safety focused']
+    description: 'Anthropic\'s AI',
+    features: ['Thoughtful', 'Structured']
   }
 };
 
@@ -42,17 +42,17 @@ export function AIProviderSelector({ selectedProvider, onProviderChange, disable
   const [showDetails, setShowDetails] = useState(false);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center gap-2">
         <Bot className="w-4 h-4 text-gray-400" />
-        <span className="text-sm font-medium text-white">AI Provider</span>
+        <span className="text-xs font-medium text-white">AI Provider</span>
       </div>
 
       <Select value={selectedProvider} onValueChange={onProviderChange} disabled={disabled}>
-        <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+        <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 text-sm">
           <SelectValue>
             <div className="flex items-center gap-2">
-              {React.createElement(AI_PROVIDERS[selectedProvider].icon, { className: "w-4 h-4" })}
+              {React.createElement(AI_PROVIDERS[selectedProvider].icon, { className: "w-3 h-3" })}
               {AI_PROVIDERS[selectedProvider].name}
             </div>
           </SelectValue>
@@ -61,35 +61,26 @@ export function AIProviderSelector({ selectedProvider, onProviderChange, disable
           {Object.entries(AI_PROVIDERS).map(([key, provider]) => (
             <SelectItem key={key} value={key} className="text-white hover:bg-gray-700">
               <div className="flex items-center gap-2">
-                {React.createElement(provider.icon, { className: "w-4 h-4" })}
-                <span>{provider.name}</span>
+                {React.createElement(provider.icon, { className: "w-3 h-3" })}
+                <span className="text-sm">{provider.name}</span>
               </div>
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setShowDetails(!showDetails)}
-        className="text-xs text-gray-400 hover:text-white"
-      >
-        {showDetails ? 'Hide Details' : 'Show Details'}
-      </Button>
-
       {showDetails && (
-        <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="p-2 bg-gray-800 rounded border border-gray-700">
+          <div className="flex items-center gap-2 mb-1">
             {React.createElement(AI_PROVIDERS[selectedProvider].icon, { 
-              className: `w-5 h-5 text-white` 
+              className: `w-4 h-4 text-white` 
             })}
-            <h4 className="font-medium text-white">{AI_PROVIDERS[selectedProvider].name}</h4>
+            <h4 className="font-medium text-white text-sm">{AI_PROVIDERS[selectedProvider].name}</h4>
           </div>
-          <p className="text-sm text-gray-400 mb-3">{AI_PROVIDERS[selectedProvider].description}</p>
+          <p className="text-xs text-gray-400 mb-2">{AI_PROVIDERS[selectedProvider].description}</p>
           <div className="flex flex-wrap gap-1">
             {AI_PROVIDERS[selectedProvider].features.map((feature, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
+              <Badge key={index} variant="secondary" className="text-xs px-1 py-0">
                 {feature}
               </Badge>
             ))}

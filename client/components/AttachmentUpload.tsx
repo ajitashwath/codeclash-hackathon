@@ -3,9 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { X, Upload, File, Image, FileText, AlertCircle } from 'lucide-react';
-import { formatFileSize } from '@/utils/helpers';
 
 export interface AttachmentFile {
   id: string;
@@ -20,30 +18,25 @@ interface AttachmentUploadProps {
   attachments: AttachmentFile[];
   onAttachmentsChange: (attachments: AttachmentFile[]) => void;
   maxFiles?: number;
-  maxFileSize?: number; // in bytes
-  acceptedTypes?: string[];
+  maxFileSize?: number;
   disabled?: boolean;
 }
 
-const DEFAULT_ACCEPTED_TYPES = [
-  'image/*',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain',
-  'text/csv'
-];
-
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 export function AttachmentUpload({
   attachments,
   onAttachmentsChange,
-  maxFiles = 5,
+  maxFiles = 3,
   maxFileSize = MAX_FILE_SIZE,
-  acceptedTypes = DEFAULT_ACCEPTED_TYPES,
   disabled = false
 }: AttachmentUploadProps) {
   const [uploading, setUploading] = useState(false);
@@ -92,18 +85,8 @@ export function AttachmentUpload({
         file,
         type: getFileType(file),
         preview,
-        uploadProgress: 0
+        uploadProgress: 100
       });
-    }
-
-    // Simulate upload progress
-    for (const attachment of newAttachments.filter(a => !a.error)) {
-      for (let progress = 0; progress <= 100; progress += 20) {
-        setTimeout(() => {
-          attachment.uploadProgress = progress;
-          onAttachmentsChange([...attachments, ...newAttachments]);
-        }, progress * 10);
-      }
     }
 
     onAttachmentsChange([...attachments, ...newAttachments]);
@@ -112,7 +95,11 @@ export function AttachmentUpload({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: acceptedTypes.reduce((acc, type) => ({ ...acc, [type]: [] }), {}),
+    accept: {
+      'image/*': [],
+      'application/pdf': [],
+      'text/plain': []
+    },
     maxFiles: maxFiles - attachments.length,
     disabled: disabled || attachments.length >= maxFiles
   });
@@ -130,10 +117,10 @@ export function AttachmentUpload({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Upload className="w-4 h-4 text-gray-400" />
-        <span className="text-sm font-medium text-white">Attachments</span>
+        <Upload className="w-3 h-3 text-gray-400" />
+        <span className="text-xs font-medium text-white">Attachments</span>
         <span className="text-xs text-gray-500">({attachments.length}/{maxFiles})</span>
       </div>
 
@@ -142,7 +129,7 @@ export function AttachmentUpload({
         <div
           {...getRootProps()}
           className={`
-            border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+            border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors
             ${isDragActive 
               ? 'border-blue-500 bg-blue-500/10' 
               : 'border-gray-600 hover:border-gray-500'
@@ -151,12 +138,12 @@ export function AttachmentUpload({
           `}
         >
           <input {...getInputProps()} />
-          <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-400 mb-1">
-            {isDragActive ? 'Drop files here...' : 'Drag & drop files here, or click to select'}
+          <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+          <p className="text-xs text-gray-400 mb-1">
+            {isDragActive ? 'Drop files here...' : 'Drag & drop files'}
           </p>
           <p className="text-xs text-gray-500">
-            Max {maxFiles} files, up to {formatFileSize(maxFileSize)} each
+            Max {maxFiles} files, {formatFileSize(maxFileSize)} each
           </p>
         </div>
       )}
@@ -168,35 +155,30 @@ export function AttachmentUpload({
             const FileIcon = getFileIcon(attachment.type);
             
             return (
-              <div key={attachment.id} className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
+              <div key={attachment.id} className="flex items-center gap-2 p-2 bg-gray-800 rounded">
                 {/* File Icon/Preview */}
                 <div className="flex-shrink-0">
                   {attachment.preview ? (
                     <img 
                       src={attachment.preview} 
                       alt={attachment.file.name}
-                      className="w-10 h-10 object-cover rounded"
+                      className="w-8 h-8 object-cover rounded"
                     />
                   ) : (
-                    <div className="w-10 h-10 bg-gray-700 rounded flex items-center justify-center">
-                      <FileIcon className="w-5 h-5 text-gray-400" />
+                    <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
+                      <FileIcon className="w-4 h-4 text-gray-400" />
                     </div>
                   )}
                 </div>
 
                 {/* File Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-xs font-medium text-white truncate">
                     {attachment.file.name}
                   </p>
                   <p className="text-xs text-gray-400">
                     {formatFileSize(attachment.file.size)}
                   </p>
-                  
-                  {/* Upload Progress */}
-                  {attachment.uploadProgress !== undefined && attachment.uploadProgress < 100 && (
-                    <Progress value={attachment.uploadProgress} className="mt-1 h-1" />
-                  )}
                   
                   {/* Error Message */}
                   {attachment.error && (
@@ -212,20 +194,13 @@ export function AttachmentUpload({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeAttachment(attachment.id)}
-                  className="text-gray-400 hover:text-red-400 p-1"
+                  className="text-gray-400 hover:text-red-400 p-1 h-6 w-6"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3 h-3" />
                 </Button>
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Upload Status */}
-      {uploading && (
-        <div className="text-center">
-          <p className="text-sm text-blue-400">Uploading files...</p>
         </div>
       )}
     </div>
