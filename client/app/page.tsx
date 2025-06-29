@@ -8,7 +8,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   MousePointer,
   Crop,
-  AlignLeft,
   Type,
   Square,
   Eraser,
@@ -23,12 +22,16 @@ import {
 import PromptInput from "./PromptInput";
 import SlideEditor from "./SlideEditor";
 import ToolPanel from "@/components/ToolPanel";
+import ColorThemeSelector from "@/components/ColorThemeSelector";
 import { Slide, SlideElement } from "@/types/slide";
+import { AIProvider } from "@/components/AIProviderSelector";
+import { AttachmentFile } from "@/components/AttachmentUpload";
+import { useSlideGeneration } from "@/hooks/useApi";
+import { apiClient } from "@/lib/api";
 
 const tools = [
   { id: "select", icon: MousePointer, label: "Select" },
   { id: "crop", icon: Crop, label: "Crop" },
-  { id: "alignment", icon: AlignLeft, label: "Alignment" },
   { id: "text", icon: Type, label: "Text" },
   { id: "shape", icon: Square, label: "Shape" },
   { id: "eraser", icon: Eraser, label: "Eraser" },
@@ -70,6 +73,7 @@ export default function App() {
   >("rectangle");
 
   const [selectedColor, setSelectedColor] = useState<string>("#3b82f6");
+  const [currentColorTheme, setCurrentColorTheme] = useState<string>("blue");
 
   const exportRef = useRef<HTMLButtonElement>(null);
   const [exportType, setExportType] = useState<"json" | "pptx">("json");
@@ -97,9 +101,8 @@ export default function App() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Use a deterministic ID based on slides content for SSR compatibility
-      setPresentationId(`pres_${slides.length}_${Date.now()}`);
+      const response = await apiClient.createPresentation("Manual save", slides, currentColorTheme);
+      setPresentationId(response.presentation_id);
       alert("Presentation saved successfully!");
     } catch (err) {
       console.error("Save error:", err);
@@ -127,13 +130,7 @@ export default function App() {
         dlAnchor.remove();
         alert("Presentation exported as JSON!");
       } else if (exportType === "pptx") {
-        const response = await fetch("http://localhost:5000/api/export-pptx", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slides }),
-        });
-        if (!response.ok) throw new Error("Failed to export PPTX");
-        const blob = await response.blob();
+        const blob = await apiClient.exportToPPTX(slides);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -173,23 +170,20 @@ export default function App() {
   };
 
   // Handler: Generate slides from AI
-  const handleGenerateSlides = async (prompt: string) => {
+  const handleGenerateSlides = async (prompt: string, provider: AIProvider, attachments: AttachmentFile[]) => {
     setIsGenerating(true);
     try {
-      const response = await fetch("http://localhost:5000/api/generate-slide", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await response.json();
-      if (data.slide) {
-        setSlides([data.slide]);
+      // For now, we'll use the existing endpoint but could extend to support different providers
+      const response = await apiClient.generateSlide(prompt, currentColorTheme);
+      
+      if (response.slide) {
+        setSlides([response.slide]);
         setCurrentSlide(0);
         setPresentationId(`ai_pres_${Date.now()}`);
         setHasImage(true);
-        alert("Presentation generated successfully!");
+        alert(`Presentation generated successfully with ${provider.toUpperCase()}!`);
       } else {
-        alert("Failed to generate slide: " + (data.error || "Unknown error"));
+        alert("Failed to generate slide");
       }
     } catch (err) {
       console.error("Generation error:", err);
@@ -260,23 +254,6 @@ export default function App() {
           : slide
       )
     );
-  };
-
-  // Handler: Alignment change
-  const handleAlignmentChange = (alignment: "left" | "center" | "right") => {
-    if (selectedElement) {
-      setSlides(prevSlides => prevSlides.map((slide, idx) => {
-        if (idx !== currentSlide) return slide;
-        return {
-          ...slide,
-          elements: slide.elements.map(el =>
-            el.id === selectedElement && (el.type === "text" || el.type === "bulletList")
-              ? { ...el, style: { ...el.style, textAlign: alignment } }
-              : el
-          )
-        };
-      }));
-    }
   };
 
   // Handler: Font Style change
@@ -355,6 +332,10 @@ export default function App() {
         };
       }));
     }
+  };
+
+  const handleThemeChange = (theme: string) => {
+    setCurrentColorTheme(theme);
   };
 
   const handleShowExportMenu = () => {
@@ -545,46 +526,18 @@ export default function App() {
                   e.stopPropagation();
                   setExportType("json");
                   setShowExportMenu(false);
-                  if (!presentationId) return;
-                  const dataStr =
-                    "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(slides, null, 2));
-                  const dlAnchor = document.createElement("a");
-                  dlAnchor.setAttribute("href", dataStr);
-                  dlAnchor.setAttribute("download", `presentation_${presentationId}.json`);
-                  document.body.appendChild(dlAnchor);
-                  dlAnchor.click();
-                  dlAnchor.remove();
+                  handleExport();
                 }}
               >
                 Export as JSON
               </button>
               <button
                 className={`w-full text-left px-4 py-1.5 hover:bg-gray-700 ${exportType === "pptx" ? "bg-gray-700" : ""} text-white text-sm`}
-                onClick={async (e) => {
+                onClick={(e) => {
                   e.stopPropagation();
                   setExportType("pptx");
                   setShowExportMenu(false);
-                  if (!presentationId) return;
-                  try {
-                    const response = await fetch("http://localhost:5000/api/export-pptx", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ slides }),
-                    });
-                    if (!response.ok) throw new Error("Failed to export PPTX");
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `presentation_${presentationId}.pptx`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
-                  } catch (err) {
-                    console.error("Export error:", err);
-                    alert("Error exporting presentation. Please try again.");
-                  }
+                  handleExport();
                 }}
               >
                 Export as PPTX
@@ -625,7 +578,6 @@ export default function App() {
           <ToolPanel
             activeTool={activeTool}
             onToolChange={handleToolSelect}
-            onAlignmentChange={handleAlignmentChange}
             onShapeChange={handleShapeChange}
             onColorChange={handleColorChange}
             onFontStyleChange={handleFontStyleChange}
@@ -660,17 +612,17 @@ export default function App() {
                 <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-md flex items-center justify-center">
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
-                <h2 className="font-semibold">AI</h2>
+                <h2 className="font-semibold">AI Assistant</h2>
               </div>
               <p className="text-sm text-gray-400">
-                AI Presentation Generation
+                Multi-Provider AI Generation
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Create presentations from text descriptions using advanced AI
+                Choose from GPT, Claude, or Gemini for content creation
               </p>
             </div>
 
-            <div className="flex-1 p-4">
+            <div className="flex-1 p-4 overflow-y-auto">
               <PromptInput
                 onGenerate={handleGenerateSlides}
                 isGenerating={isGenerating}
@@ -678,42 +630,12 @@ export default function App() {
             </div>
 
             <div className="p-4 border-t border-gray-700">
-              <h3 className="text-sm font-medium mb-3">Quick Inspirations</h3>
-              <div className="space-y-2">
-                <button
-                  className="w-full text-left p-3 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 transition-colors text-sm"
-                  onClick={() =>
-                    handleGenerateSlides(
-                      "Business presentation with sales statistics data"
-                    )
-                  }
-                  disabled={isGenerating}
-                >
-                  Business presentation with sales statistics data
-                </button>
-                <button
-                  className="w-full text-left p-3 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 transition-colors text-sm"
-                  onClick={() =>
-                    handleGenerateSlides(
-                      "Marketing strategy deck with growth metrics"
-                    )
-                  }
-                  disabled={isGenerating}
-                >
-                  Marketing strategy deck with growth metrics
-                </button>
-                <button
-                  className="w-full text-left p-3 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 transition-colors text-sm"
-                  onClick={() =>
-                    handleGenerateSlides(
-                      "Product launch presentation with timeline"
-                    )
-                  }
-                  disabled={isGenerating}
-                >
-                  Product launch presentation with timeline
-                </button>
-              </div>
+              <ColorThemeSelector
+                currentTheme={currentColorTheme}
+                onThemeChange={handleThemeChange}
+                slideId={slides[currentSlide]?.id}
+                presentationId={presentationId || undefined}
+              />
             </div>
           </div>
         )}
