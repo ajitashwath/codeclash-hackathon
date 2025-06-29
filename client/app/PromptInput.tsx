@@ -48,6 +48,12 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
 
   return (
     <div className="space-y-4">
+      {/* AI Assistant Header - Made Larger */}
+      <div className="text-center mb-4">
+        <h2 className="text-lg font-semibold text-white mb-1">AI Assistant</h2>
+        <p className="text-sm text-gray-400">Multi-Provider AI Generation</p>
+      </div>
+
       {/* AI Provider Selection */}
       <AIProviderSelector
         selectedProvider={selectedProvider}
@@ -90,7 +96,9 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
             variant="ghost"
             size="sm"
             onClick={() => setShowAttachments(!showAttachments)}
-            className="text-gray-400 hover:text-white"
+            className={`text-gray-400 hover:text-white transition-colors ${
+              showAttachments ? 'bg-gray-700' : ''
+            }`}
           >
             <Paperclip className="w-4 h-4 mr-1" />
             Attachments ({attachments.length})
@@ -107,7 +115,7 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
         />
       )}
 
-      {/* Generate Button */}
+      {/* Generate Button - Simplified */}
       <Button
         onClick={handleGenerate}
         disabled={!prompt.trim() || isGenerating}
@@ -116,12 +124,12 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
         {isGenerating ? (
           <>
             <Wand2 className="w-4 h-4 mr-2 animate-spin" />
-            Generating with {selectedProvider.toUpperCase()}...
+            Generating...
           </>
         ) : (
           <>
             <Sparkles className="w-4 h-4 mr-2" />
-            Generate Slides with {selectedProvider.toUpperCase()}
+            Generate Slides
           </>
         )}
       </Button>
@@ -132,7 +140,7 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
           <div className="h-40 bg-gray-700/30 rounded-lg animate-pulse flex items-center justify-center">
             <div className="text-center">
               <Wand2 className="w-8 h-8 mx-auto mb-2 animate-spin text-purple-500" />
-              <p className="text-sm text-gray-400">Creating your presentation with {selectedProvider.toUpperCase()}...</p>
+              <p className="text-sm text-gray-400">Creating your presentation...</p>
               <p className="text-xs text-gray-500 mt-1">
                 {attachments.length > 0 && `Processing ${attachments.length} attachment(s)...`}
               </p>
@@ -144,7 +152,7 @@ export default function PromptInput({ onGenerate, isGenerating }: PromptInputPro
         </div>
       )}
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Only 2 buttons */}
       <div className="grid grid-cols-2 gap-2">
         <Button
           variant="outline"

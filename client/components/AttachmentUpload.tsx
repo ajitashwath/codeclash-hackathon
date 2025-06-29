@@ -132,7 +132,7 @@ export function AttachmentUpload({
             border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors
             ${isDragActive 
               ? 'border-blue-500 bg-blue-500/10' 
-              : 'border-gray-600 hover:border-gray-500'
+              : 'border-gray-600 hover:border-gray-500 hover:bg-gray-700/30'
             }
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           `}
@@ -155,7 +155,7 @@ export function AttachmentUpload({
             const FileIcon = getFileIcon(attachment.type);
             
             return (
-              <div key={attachment.id} className="flex items-center gap-2 p-2 bg-gray-800 rounded">
+              <div key={attachment.id} className="flex items-center gap-2 p-2 bg-gray-800/50 rounded border border-gray-700">
                 {/* File Icon/Preview */}
                 <div className="flex-shrink-0">
                   {attachment.preview ? (
@@ -194,7 +194,7 @@ export function AttachmentUpload({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeAttachment(attachment.id)}
-                  className="text-gray-400 hover:text-red-400 p-1 h-6 w-6"
+                  className="text-gray-400 hover:text-red-400 hover:bg-red-500/10 p-1 h-6 w-6"
                 >
                   <X className="w-3 h-3" />
                 </Button>
