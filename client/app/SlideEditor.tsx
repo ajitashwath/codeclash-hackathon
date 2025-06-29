@@ -120,26 +120,36 @@ export default function SlideEditor({
     switch (type) {
       case "text":
         content = "Click to edit text";
-        style = { fontSize: "16px", textAlign: "left", color: "#1f2937" };
+        style = { 
+          fontSize: "16px", 
+          textAlign: "left", 
+          color: "#1f2937",
+          fontWeight: "normal",
+          fontStyle: "normal",
+          textDecoration: "none"
+        };
         break;
       case "bulletList":
-        content = "Bullet point 1\nBullet point 2\nBullet point 3";
-        height = 80;
+        content = "• First bullet point\n• Second bullet point\n• Third bullet point";
+        height = 120;
+        width = 400;
         style = {
-          fontSize: "14px",
+          fontSize: "16px",
           textAlign: "left",
           color: "#1f2937",
-          listItems: ["Bullet point 1", "Bullet point 2", "Bullet point 3"],
+          fontWeight: "normal",
+          fontStyle: "normal",
+          textDecoration: "none"
         };
         break;
       case "shape":
-        content = "rectangle";
+        content = selectedShape || "rectangle";
         width = 100;
         height = 100;
         style = {
           backgroundColor: extraProps.backgroundColor || selectedColor,
-          borderRadius: "4px",
-          shapeType: "rectangle",
+          borderRadius: selectedShape === "circle" ? "50%" : "4px",
+          shapeType: selectedShape || "rectangle",
         };
         break;
       case "image":
@@ -301,6 +311,63 @@ export default function SlideEditor({
     }
   };
 
+  const renderBulletList = (element: SlideElement) => {
+    const lines = element.content.split('\n').filter(line => line.trim());
+    
+    return (
+      <div className="w-full h-full p-2">
+        {editingElement === element.id ? (
+          <Textarea
+            value={element.content}
+            onChange={(e) =>
+              updateElement(element.id, {
+                content: e.target.value,
+              })
+            }
+            onBlur={() => setEditingElement(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setEditingElement(null);
+              }
+            }}
+            className="w-full h-full border-none bg-transparent text-gray-800 p-0 shadow-none resize-none"
+            style={{
+              fontSize: element.style?.fontSize || "16px",
+              color: element.style?.color || "#1f2937",
+              fontWeight: element.style?.fontWeight || "normal",
+              fontStyle: element.style?.fontStyle || "normal",
+              textDecoration: element.style?.textDecoration || "none",
+            }}
+            autoFocus
+            placeholder="• Add bullet points here..."
+          />
+        ) : (
+          <div className="space-y-1">
+            {lines.map((line, index) => (
+              <div
+                key={index}
+                className="flex items-start"
+                style={{
+                  fontSize: element.style?.fontSize || "16px",
+                  color: element.style?.color || "#1f2937",
+                  fontWeight: element.style?.fontWeight || "normal",
+                  fontStyle: element.style?.fontStyle || "normal",
+                  textDecoration: element.style?.textDecoration || "none",
+                }}
+              >
+                {line.startsWith('•') ? (
+                  <span>{line}</span>
+                ) : (
+                  <span>• {line}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (hasImage || showSlide) {
     return (
       <>
@@ -339,7 +406,9 @@ export default function SlideEditor({
                     className={`absolute border-2 ${
                       activeTool === "eraser"
                         ? "border-red-300 hover:border-red-500 hover:bg-red-50/20"
-                        : "border-transparent"
+                        : selectedElement === element.id
+                        ? "border-blue-400 bg-blue-50/10"
+                        : "border-transparent hover:border-gray-300"
                     } cursor-pointer transition-all`}
                     style={{
                       left: element.x,
@@ -376,6 +445,9 @@ export default function SlideEditor({
                               fontSize: element.style?.fontSize || "16px",
                               textAlign: element.style?.textAlign || "left",
                               color: element.style?.color || "#1f2937",
+                              fontWeight: element.style?.fontWeight || "normal",
+                              fontStyle: element.style?.fontStyle || "normal",
+                              textDecoration: element.style?.textDecoration || "none",
                             }}
                             autoFocus
                           />
@@ -386,6 +458,9 @@ export default function SlideEditor({
                               fontSize: element.style?.fontSize || "16px",
                               textAlign: element.style?.textAlign || "left",
                               color: element.style?.color || "#1f2937",
+                              fontWeight: element.style?.fontWeight || "normal",
+                              fontStyle: element.style?.fontStyle || "normal",
+                              textDecoration: element.style?.textDecoration || "none",
                             }}
                           >
                             {element.content}
@@ -394,41 +469,7 @@ export default function SlideEditor({
                       </div>
                     )}
 
-                    {element.type === "bulletList" && (
-                      <div className="w-full h-full p-2">
-                        {editingElement === element.id ? (
-                          <Textarea
-                            value={element.content}
-                            onChange={(e) =>
-                              updateElement(element.id, {
-                                content: e.target.value,
-                              })
-                            }
-                            onBlur={() => setEditingElement(null)}
-                            className="w-full h-full border-none bg-transparent text-gray-800 p-0 shadow-none resize-none"
-                            style={{
-                              fontSize: element.style?.fontSize || "14px",
-                              color: element.style?.color || "#1f2937",
-                            }}
-                            autoFocus
-                          />
-                        ) : (
-                          <ul className="list-disc list-inside space-y-1">
-                            {element.content.split("\n").map((item, index) => (
-                              <li
-                                key={index}
-                                style={{
-                                  fontSize: element.style?.fontSize || "14px",
-                                  color: element.style?.color || "#1f2937",
-                                }}
-                              >
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
+                    {element.type === "bulletList" && renderBulletList(element)}
 
                     {element.type === "shape" && renderShape(element)}
 

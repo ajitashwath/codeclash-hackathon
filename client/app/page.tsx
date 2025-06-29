@@ -18,6 +18,7 @@ import {
   Download,
   Sparkles,
   ChevronDown,
+  List,
 } from "lucide-react";
 import PromptInput from "./PromptInput";
 import SlideEditor from "./SlideEditor";
@@ -236,6 +237,31 @@ export default function App() {
     );
   };
 
+  // Handler: Add Bullet List
+  const handleBulletListAdd = () => {
+    const newBulletList: SlideElement = {
+      id: `bulletlist_${Date.now()}`,
+      type: "bulletList",
+      content: "• First bullet point\n• Second bullet point\n• Third bullet point",
+      x: 100,
+      y: 200,
+      width: 400,
+      height: 120,
+      style: {
+        fontSize: "16px",
+        textAlign: "left",
+        color: "#1f2937",
+      },
+    };
+    setSlides((prevSlides) =>
+      prevSlides.map((slide, idx) =>
+        idx === currentSlide
+          ? { ...slide, elements: [...slide.elements, newBulletList] }
+          : slide
+      )
+    );
+  };
+
   // Handler: Alignment change
   const handleAlignmentChange = (alignment: "left" | "center" | "right") => {
     if (selectedElement) {
@@ -253,12 +279,82 @@ export default function App() {
     }
   };
 
+  // Handler: Font Style change
+  const handleFontStyleChange = (style: "bold" | "italic" | "underline") => {
+    if (selectedElement) {
+      setSlides(prevSlides => prevSlides.map((slide, idx) => {
+        if (idx !== currentSlide) return slide;
+        return {
+          ...slide,
+          elements: slide.elements.map(el => {
+            if (el.id === selectedElement && (el.type === "text" || el.type === "bulletList")) {
+              const currentStyle = el.style || {};
+              let newStyle = { ...currentStyle };
+              
+              switch (style) {
+                case "bold":
+                  newStyle.fontWeight = currentStyle.fontWeight === "bold" ? "normal" : "bold";
+                  break;
+                case "italic":
+                  newStyle.fontStyle = currentStyle.fontStyle === "italic" ? "normal" : "italic";
+                  break;
+                case "underline":
+                  newStyle.textDecoration = currentStyle.textDecoration === "underline" ? "none" : "underline";
+                  break;
+              }
+              
+              return { ...el, style: newStyle };
+            }
+            return el;
+          })
+        };
+      }));
+    }
+  };
+
+  // Handler: Font Size change
+  const handleFontSizeChange = (fontSize: string) => {
+    if (selectedElement) {
+      setSlides(prevSlides => prevSlides.map((slide, idx) => {
+        if (idx !== currentSlide) return slide;
+        return {
+          ...slide,
+          elements: slide.elements.map(el =>
+            el.id === selectedElement && (el.type === "text" || el.type === "bulletList")
+              ? { ...el, style: { ...el.style, fontSize } }
+              : el
+          )
+        };
+      }));
+    }
+  };
+
   const handleShapeChange = (shape: "rectangle" | "circle" | "triangle") => {
     setSelectedShape(shape);
   };
 
   const handleColorChange = (color: string) => {
     setSelectedColor(color);
+    
+    // If an element is selected, apply color to it
+    if (selectedElement) {
+      setSlides(prevSlides => prevSlides.map((slide, idx) => {
+        if (idx !== currentSlide) return slide;
+        return {
+          ...slide,
+          elements: slide.elements.map(el => {
+            if (el.id === selectedElement) {
+              if (el.type === "text" || el.type === "bulletList") {
+                return { ...el, style: { ...el.style, color } };
+              } else if (el.type === "shape") {
+                return { ...el, style: { ...el.style, backgroundColor: color } };
+              }
+            }
+            return el;
+          })
+        };
+      }));
+    }
   };
 
   const handleShowExportMenu = () => {
@@ -532,8 +628,11 @@ export default function App() {
             onAlignmentChange={handleAlignmentChange}
             onShapeChange={handleShapeChange}
             onColorChange={handleColorChange}
+            onFontStyleChange={handleFontStyleChange}
+            onFontSizeChange={handleFontSizeChange}
             selectedElement={selectedElement}
             onTableAdd={handleTableAdd}
+            onBulletListAdd={handleBulletListAdd}
           />
         </div>
 

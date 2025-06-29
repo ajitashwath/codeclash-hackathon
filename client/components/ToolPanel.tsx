@@ -11,6 +11,10 @@ import {
   Type,
   Crop,
   Eraser,
+  List,
+  Bold,
+  Italic,
+  Underline,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -20,8 +24,11 @@ interface ToolPanelProps {
   onAlignmentChange: (alignment: "left" | "center" | "right") => void;
   onShapeChange: (shape: "rectangle" | "circle" | "triangle") => void;
   onColorChange: (color: string) => void;
+  onFontStyleChange?: (style: "bold" | "italic" | "underline") => void;
+  onFontSizeChange?: (size: string) => void;
   selectedElement?: any;
   onTableAdd?: (rows: number, cols: number) => void;
+  onBulletListAdd?: () => void;
 }
 
 export default function ToolPanel({
@@ -30,8 +37,11 @@ export default function ToolPanel({
   onAlignmentChange,
   onShapeChange,
   onColorChange,
+  onFontStyleChange,
+  onFontSizeChange,
   selectedElement,
   onTableAdd,
+  onBulletListAdd,
 }: ToolPanelProps) {
   const colors = [
     "#3b82f6",
@@ -43,6 +53,8 @@ export default function ToolPanel({
     "#06b6d4",
     "#84cc16",
   ];
+
+  const fontSizes = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
 
   const [rows, setRows] = React.useState(2);
   const [cols, setCols] = React.useState(2);
@@ -86,7 +98,7 @@ export default function ToolPanel({
     return createPortal(
       <div className="absolute left-24 top-32 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg z-[1000]">
         <h3 className="text-sm font-medium text-white mb-2">Shapes</h3>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <Button
             size="sm"
             variant="ghost"
@@ -130,9 +142,59 @@ export default function ToolPanel({
 
   if (activeTool === "text") {
     return createPortal(
-      <div className="absolute left-24 top-32 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg z-[1000]">
-        <h3 className="text-sm font-medium text-white mb-2">Text Options</h3>
-        <div className="space-y-2">
+      <div className="absolute left-24 top-32 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg z-[1000] min-w-[200px]">
+        <h3 className="text-sm font-medium text-white mb-3">Text Formatting</h3>
+        
+        {/* Font Style */}
+        <div className="mb-3">
+          <h4 className="text-xs font-medium text-gray-400 mb-2">Font Style</h4>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-gray-700"
+              onClick={() => onFontStyleChange?.("bold")}
+            >
+              <Bold className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-gray-700"
+              onClick={() => onFontStyleChange?.("italic")}
+            >
+              <Italic className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-gray-700"
+              onClick={() => onFontStyleChange?.("underline")}
+            >
+              <Underline className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Font Size */}
+        <div className="mb-3">
+          <h4 className="text-xs font-medium text-gray-400 mb-2">Font Size</h4>
+          <select
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+            onChange={(e) => onFontSizeChange?.(e.target.value)}
+            defaultValue="16px"
+          >
+            {fontSizes.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Text Alignment */}
+        <div className="mb-3">
+          <h4 className="text-xs font-medium text-gray-400 mb-2">Alignment</h4>
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -159,6 +221,11 @@ export default function ToolPanel({
               <AlignRight className="w-4 h-4" />
             </Button>
           </div>
+        </div>
+
+        {/* Text Color */}
+        <div>
+          <h4 className="text-xs font-medium text-gray-400 mb-2">Text Color</h4>
           <div className="grid grid-cols-4 gap-1">
             {colors.map((color) => (
               <button
@@ -169,6 +236,22 @@ export default function ToolPanel({
               />
             ))}
           </div>
+        </div>
+
+        {/* Add Bullet List Option */}
+        <div className="mt-3 pt-3 border-t border-gray-600">
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full bg-blue-600 border-blue-500 text-white hover:bg-blue-500"
+            onClick={() => {
+              onBulletListAdd?.();
+              onToolChange("select");
+            }}
+          >
+            <List className="w-4 h-4 mr-2" />
+            Add Bullet List
+          </Button>
         </div>
       </div>,
       document.body
