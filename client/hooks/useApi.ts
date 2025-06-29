@@ -55,30 +55,59 @@ export function usePresentationManagement() {
   const { data, loading, error, execute } = useApi<Presentation>();
 
   const createPresentation = useCallback(
-    (prompt: string, slides?: Slide[], colorTheme?: string) =>
-      execute(() => apiClient.createPresentation(prompt, slides, colorTheme)),
-    [execute]
+    async (prompt: string, slides?: Slide[], colorTheme?: string) => {
+      const response = await apiClient.createPresentation(prompt, slides, colorTheme);
+      // Map API response to Presentation type
+      return {
+        id: response.presentation_id,
+        prompt,
+        slides: response.slides as Slide[],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Presentation;
+    },
+    []
   );
 
   const updatePresentation = useCallback(
-    (presentationId: string, slides: Slide[]) =>
-      execute(() => apiClient.updatePresentation(presentationId, slides)),
-    [execute]
+    async (presentationId: string, slides: Slide[]) => {
+      const response = await apiClient.updatePresentation(presentationId, slides);
+      // Map API response to Presentation type
+      const p = response.presentation;
+      return {
+        id: p.id || presentationId,
+        prompt: p.prompt,
+        slides: p.slides as Slide[],
+        default_color_theme: p.default_color_theme,
+        created_at: p.created_at || new Date().toISOString(),
+        updated_at: p.updated_at || new Date().toISOString(),
+      } as Presentation;
+    },
+    []
   );
 
   const getPresentation = useCallback(
-    (presentationId: string) =>
-      execute(() => apiClient.getPresentation(presentationId)),
-    [execute]
+    async (presentationId: string) => {
+      const p = await apiClient.getPresentation(presentationId);
+      return {
+        id: p.id || presentationId,
+        prompt: p.prompt,
+        slides: p.slides as Slide[],
+        default_color_theme: p.default_color_theme,
+        created_at: p.created_at || new Date().toISOString(),
+        updated_at: p.updated_at || new Date().toISOString(),
+      } as Presentation;
+    },
+    []
   );
 
   return {
     presentation: data,
     loading,
     error,
-    createPresentation,
-    updatePresentation,
-    getPresentation,
+    createPresentation: (prompt: string, slides?: Slide[], colorTheme?: string) => execute(() => createPresentation(prompt, slides, colorTheme)),
+    updatePresentation: (presentationId: string, slides: Slide[]) => execute(() => updatePresentation(presentationId, slides)),
+    getPresentation: (presentationId: string) => execute(() => getPresentation(presentationId)),
   };
 }
 
@@ -86,12 +115,26 @@ export function useVoiceInteraction() {
   const { data, loading, error, execute } = useApi<VoiceResponse>();
 
   const getGreeting = useCallback(
-    () => execute(() => apiClient.getVoiceGreeting()),
+    () => execute(async () => {
+      const response = await apiClient.getVoiceGreeting();
+      return {
+        message: response.message || response.response || '',
+        voice_enabled: response.voice_enabled ?? true,
+        suggestions: response.suggestions || [],
+      } as VoiceResponse;
+    }),
     [execute]
   );
 
   const processInput = useCallback(
-    (input: string) => execute(() => apiClient.processVoiceInput(input)),
+    (input: string) => execute(async () => {
+      const response = await apiClient.processVoiceInput(input);
+      return {
+        message: response.response,
+        voice_enabled: true,
+        suggestions: [],
+      } as VoiceResponse;
+    }),
     [execute]
   );
 
@@ -112,18 +155,11 @@ export function useColorThemes() {
     [execute]
   );
 
-  const changeSlideColor = useCallback(
-    (slideId: number, colorTheme: string, presentationId?: string) =>
-      execute(() => apiClient.changeSlideColor(slideId, colorTheme, presentationId)),
-    [execute]
-  );
-
   return {
     themes: data?.themes || {},
     availableColors: data?.available_colors || [],
     loading,
     error,
     getThemes,
-    changeSlideColor,
   };
 }
