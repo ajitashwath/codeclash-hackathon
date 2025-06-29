@@ -10,8 +10,13 @@ from dotenv import load_dotenv
 from io import BytesIO
 try:
     from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    PPTX_AVAILABLE = True
 except ImportError:
     Presentation = None
+    PPTX_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
@@ -21,16 +26,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"])
 
 # Configure Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
+if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-pro')
     logger.info("✅ Gemini AI configured successfully")
 else:
-    logger.warning("⚠️ GEMINI_API_KEY not found in environment variables")
+    logger.warning("⚠️ GEMINI_API_KEY not found or not configured")
     model = None
 
 # In-memory storage for demo (use database in production)
@@ -230,65 +235,144 @@ def convert_to_slide_elements(ai_response, color_theme="blue"):
     
     return elements
 
-# Voice interaction responses
-def get_voice_greeting():
-    """Get a friendly greeting for voice interaction"""
-    greetings = [
-        "Hello! How's your day going? What kind of presentation would you like to create today?",
-        "Good day! I'm here to help you create amazing slides. What's your presentation topic?",
-        "Hi there! Ready to build something great? Tell me about your presentation needs.",
-        "Welcome! I'm excited to help you create your presentation. What's on your mind?"
-    ]
-    import random
-    return random.choice(greetings)
+def hex_to_rgb(hex_color):
+    """Convert hex color to RGB tuple"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
-# API Routes
-@app.route('/api/voice/greeting', methods=['GET'])
-def voice_greeting():
-    """Get voice greeting for user interaction"""
-    try:
-        greeting = get_voice_greeting()
-        return jsonify({
-            "message": greeting,
-            "voice_enabled": True,
-            "suggestions": [
-                "Business presentation",
-                "Marketing strategy",
-                "Project proposal",
-                "Team meeting"
-            ]
-        })
-    except Exception as e:
-        logger.error(f"Error in voice greeting: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+def create_enhanced_pptx(slides_data):
+    """Create an enhanced PPTX with better formatting"""
+    if not PPTX_AVAILABLE:
+        raise ImportError("python-pptx is not available")
+    
+    prs = Presentation()
+    
+    # Remove default slide if exists
+    if len(prs.slides) > 0:
+        xml_slides = prs.slides._sldIdLst
+        slides = list(xml_slides)
+        for sld in slides:
+            xml_slides.remove(sld)
+    
+    for slide_data in slides_data:
+        # Use title and content layout
+        slide_layout = prs.slide_layouts[1]  # Title and Content
+        slide = prs.slides.add_slide(slide_layout)
+        
+        # Set slide title
+        title = slide_data.get('title', 'Slide')
+        if slide.shapes.title:
+            slide.shapes.title.text = title
+            # Format title
+            title_paragraph = slide.shapes.title.text_frame.paragraphs[0]
+            title_paragraph.font.size = Pt(32)
+            title_paragraph.font.bold = True
+            
+            # Apply color theme if available
+            color_theme = slide_data.get('color_theme', 'blue')
+            theme_colors = COLOR_THEMES.get(color_theme, COLOR_THEMES['blue'])
+            try:
+                rgb = hex_to_rgb(theme_colors['primary'])
+                title_paragraph.font.color.rgb = RGBColor(*rgb)
+            except:
+                pass  # Use default color if conversion fails
+        
+        # Process slide elements
+        elements = slide_data.get('elements', [])
+        
+        # Find content placeholder
+        content_placeholder = None
+        for shape in slide.placeholders:
+            if shape.placeholder_format.idx == 1:  # Content placeholder
+                content_placeholder = shape
+                break
+        
+        # Collect all text content
+        text_elements = []
+        bullet_elements = []
+        
+        for element in elements:
+            if element.get('type') == 'text':
+                content = element.get('content', '')
+                if '•' in content:
+                    # This is bullet content
+                    bullet_points = [line.strip('• ').strip() for line in content.split('\n') if line.strip()]
+                    bullet_elements.extend(bullet_points)
+                else:
+                    text_elements.append(content)
+            elif element.get('type') == 'bulletList':
+                content = element.get('content', '')
+                bullet_points = [line.strip('• ').strip() for line in content.split('\n') if line.strip()]
+                bullet_elements.extend(bullet_points)
+        
+        # Add content to placeholder
+        if content_placeholder and hasattr(content_placeholder, 'text_frame'):
+            text_frame = content_placeholder.text_frame
+            text_frame.clear()
+            
+            # Add regular text first
+            if text_elements:
+                for i, text in enumerate(text_elements):
+                    if i == 0:
+                        p = text_frame.paragraphs[0]
+                    else:
+                        p = text_frame.add_paragraph()
+                    p.text = text
+                    p.font.size = Pt(16)
+                    p.space_after = Pt(12)
+            
+            # Add bullet points
+            if bullet_elements:
+                for i, bullet in enumerate(bullet_elements):
+                    if not text_elements and i == 0:
+                        p = text_frame.paragraphs[0]
+                    else:
+                        p = text_frame.add_paragraph()
+                    p.text = bullet
+                    p.level = 0  # First level bullet
+                    p.font.size = Pt(14)
+                    p.space_after = Pt(6)
+        
+        # Handle table elements
+        table_elements = [el for el in elements if el.get('type') == 'table']
+        if table_elements:
+            for table_element in table_elements:
+                table_data = table_element.get('tableData', {})
+                rows = table_data.get('rows', 2)
+                cols = table_data.get('cols', 2)
+                cells = table_data.get('cells', [])
+                
+                if cells:
+                    # Add table to slide
+                    left = Inches(1)
+                    top = Inches(3)
+                    width = Inches(8)
+                    height = Inches(2)
+                    
+                    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+                    
+                    # Fill table with data
+                    for row_idx, row_data in enumerate(cells[:rows]):
+                        for col_idx, cell_data in enumerate(row_data[:cols]):
+                            if row_idx < len(table.rows) and col_idx < len(table.columns):
+                                cell = table.cell(row_idx, col_idx)
+                                cell.text = str(cell_data)
+                                # Format cell text
+                                for paragraph in cell.text_frame.paragraphs:
+                                    paragraph.font.size = Pt(12)
+    
+    return prs
 
-@app.route('/api/voice/process', methods=['POST'])
-def process_voice_input():
-    """Process voice input and generate appropriate response"""
-    try:
-        data = request.get_json()
-        user_input = data.get('input', '').strip()
-        
-        if not user_input:
-            return jsonify({"error": "No input provided"}), 400
-        
-        # Check if it's a greeting/casual response
-        casual_keywords = ['good', 'fine', 'great', 'okay', 'well', 'nice', 'bad', 'tired']
-        if any(keyword in user_input.lower() for keyword in casual_keywords):
-            response = "That's great to hear! Now, what type of presentation would you like to create? You can describe your topic or ask for suggestions."
-        else:
-            # Treat as presentation request
-            response = f"Perfect! I'll help you create a presentation about '{user_input}'. Let me generate some slide content for you."
-        
-        return jsonify({
-            "response": response,
-            "should_generate": not any(keyword in user_input.lower() for keyword in casual_keywords),
-            "topic": user_input if not any(keyword in user_input.lower() for keyword in casual_keywords) else None
-        })
-        
-    except Exception as e:
-        logger.error(f"Error processing voice input: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "gemini_configured": model is not None,
+        "pptx_available": PPTX_AVAILABLE,
+        "version": "1.0.0"
+    })
 
 @app.route('/api/generate-slide', methods=['POST'])
 def generate_slide():
@@ -310,6 +394,8 @@ def generate_slide():
         slide = {
             "id": int(datetime.now().timestamp()),
             "title": ai_response.get("title", "Generated Slide"),
+            "content": "",
+            "notes": "",
             "elements": convert_to_slide_elements(ai_response, color_theme),
             "theme": ai_response.get("design_theme", "professional"),
             "layout": ai_response.get("layout_type", "bullet-list"),
@@ -329,58 +415,6 @@ def generate_slide():
         
     except Exception as e:
         logger.error(f"Error generating slide: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/slides/<int:slide_id>/color', methods=['PUT'])
-def change_slide_color(slide_id):
-    """Change the color theme of a specific slide"""
-    try:
-        data = request.get_json()
-        color_theme = data.get('color_theme', 'blue')
-        presentation_id = data.get('presentation_id')
-        
-        if color_theme not in COLOR_THEMES:
-            return jsonify({"error": "Invalid color theme"}), 400
-        
-        # Find and update the slide
-        updated = False
-        for pres_id, presentation in presentations.items():
-            if presentation_id and pres_id != presentation_id:
-                continue
-                
-            for slide in presentation['slides']:
-                if slide['id'] == slide_id:
-                    # Update slide color theme
-                    slide['color_theme'] = color_theme
-                    slide['background_color'] = COLOR_THEMES[color_theme]["background"]
-                    
-                    # Update all text elements with new color theme
-                    theme_colors = COLOR_THEMES[color_theme]
-                    for element in slide['elements']:
-                        if element['type'] == 'text':
-                            if 'title_' in element['id']:
-                                element['style']['color'] = theme_colors["primary"]
-                            else:
-                                element['style']['color'] = theme_colors["text"]
-                    
-                    presentation['updated_at'] = datetime.now().isoformat()
-                    updated = True
-                    break
-            
-            if updated:
-                break
-        
-        if not updated:
-            return jsonify({"error": "Slide not found"}), 404
-        
-        return jsonify({
-            "message": f"Slide color changed to {color_theme}",
-            "color_theme": color_theme,
-            "background_color": COLOR_THEMES[color_theme]["background"]
-        })
-        
-    except Exception as e:
-        logger.error(f"Error changing slide color: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/color-themes', methods=['GET'])
@@ -414,6 +448,8 @@ def create_presentation():
             new_slide = {
                 "id": len(slides) + 1,
                 "title": ai_response.get("title", "Generated Slide"),
+                "content": "",
+                "notes": "",
                 "elements": convert_to_slide_elements(ai_response, color_theme),
                 "theme": ai_response.get("design_theme", "professional"),
                 "layout": ai_response.get("layout_type", "bullet-list"),
@@ -445,144 +481,45 @@ def create_presentation():
         logger.error(f"Error creating presentation: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/presentations/<presentation_id>', methods=['GET'])
-def get_presentation(presentation_id):
-    """Get specific presentation"""
-    try:
-        presentation = presentations.get(presentation_id)
-        if not presentation:
-            return jsonify({"error": "Presentation not found"}), 404
-        
-        return jsonify(presentation)
-        
-    except Exception as e:
-        logger.error(f"Error retrieving presentation: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/presentations/<presentation_id>', methods=['PUT'])
-def update_presentation(presentation_id):
-    """Update existing presentation"""
-    try:
-        data = request.get_json()
-        
-        if presentation_id not in presentations:
-            return jsonify({"error": "Presentation not found"}), 404
-        
-        presentations[presentation_id].update({
-            "slides": data.get("slides", presentations[presentation_id]["slides"]),
-            "updated_at": datetime.now().isoformat()
-        })
-        
-        return jsonify({
-            "message": "Presentation updated successfully",
-            "presentation": presentations[presentation_id]
-        })
-        
-    except Exception as e:
-        logger.error(f"Error updating presentation: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/presentations', methods=['GET'])
-def list_presentations():
-    """List all presentations"""
-    try:
-        return jsonify({
-            "presentations": list(presentations.values()),
-            "count": len(presentations)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error listing presentations: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/quick-inspiration', methods=['POST'])
-def quick_inspiration():
-    """Handle quick inspiration prompts"""
-    try:
-        data = request.get_json()
-        inspiration = data.get('inspiration', '')
-        
-        if not inspiration:
-            return jsonify({"error": "Inspiration text required"}), 400
-        
-        # Generate content based on inspiration
-        ai_response = generate_with_gemini(inspiration)
-        
-        return jsonify({
-            "slide_content": ai_response,
-            "message": "Inspiration processed successfully"
-        })
-        
-    except Exception as e:
-        logger.error(f"Error processing inspiration: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "gemini_configured": model is not None,
-        "version": "1.0.0"
-    })
-
 @app.route('/api/export-pptx', methods=['POST'])
 def export_pptx():
-    """Export slides as a PPTX file"""
-    if Presentation is None:
-        return jsonify({"error": "python-pptx is not installed on the server."}), 500
+    """Export slides as a PPTX file with enhanced formatting"""
+    if not PPTX_AVAILABLE:
+        return jsonify({
+            "error": "PPTX export is not available. Please install python-pptx: pip install python-pptx"
+        }), 500
+    
     try:
         data = request.get_json()
         slides_data = data.get('slides', [])
-        prs = Presentation()
-        # Remove default slide
-        if len(prs.slides) > 0:
-            xml_slides = prs.slides._sldIdLst
-            slides = list(xml_slides)
-            for sld in slides:
-                xml_slides.remove(sld)
-        for slide in slides_data:
-            sld = prs.slides.add_slide(prs.slide_layouts[1])  # Title and Content
-            title = slide.get('title', 'Slide')
-            elements = slide.get('elements', [])
-            if sld.shapes.title:
-                sld.shapes.title.text = title
-            # Find bullet points in elements
-            bullet_points = []
-            for el in elements:
-                if el.get('type') == 'text' and '•' in el.get('content', ''):
-                    bullet_points.extend([line.strip('• ').strip() for line in el['content'].split('\n') if line.strip()])
-            # Add content to placeholder if it exists
-            content_shape = None
-            for shape in sld.placeholders:
-                if shape.placeholder_format.idx == 1:
-                    content_shape = shape
-                    break
-            if content_shape is not None and hasattr(content_shape, 'text_frame'):
-                tf = content_shape.text_frame
-                tf.clear()
-                if bullet_points:
-                    for idx, point in enumerate(bullet_points):
-                        if idx == 0:
-                            tf.text = point
-                        else:
-                            p = tf.add_paragraph()
-                            p.text = point
-                else:
-                    tf.text = slide.get('content', '')
+        
+        if not slides_data:
+            return jsonify({"error": "No slides provided"}), 400
+        
+        logger.info(f"Exporting {len(slides_data)} slides to PPTX")
+        
+        # Create enhanced PPTX
+        prs = create_enhanced_pptx(slides_data)
+        
+        # Save to BytesIO
         pptx_io = BytesIO()
         prs.save(pptx_io)
         pptx_io.seek(0)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"slideflow_presentation_{timestamp}.pptx"
+        
         return send_file(
             pptx_io,
             mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',
             as_attachment=True,
-            download_name='presentation.pptx'
+            download_name=filename
         )
+        
     except Exception as e:
         logger.error(f"Error exporting PPTX: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"PPTX export failed: {str(e)}"}), 500
 
 # Error handlers
 @app.errorhandler(404)
@@ -597,8 +534,7 @@ if __name__ == '__main__':
     print("🚀 Starting SlideFlow Backend Server...")
     print("📊 Frontend should connect to: http://localhost:5000")
     print("🔗 API endpoints available at: http://localhost:5000/api/")
-    print("🎤 Voice interaction endpoints ready")
-    print("🎨 Color theme support enabled")
     print(f"🤖 Gemini AI: {'✅ Connected' if model else '❌ Not configured'}")
+    print(f"📄 PPTX Export: {'✅ Available' if PPTX_AVAILABLE else '❌ Not available (install python-pptx)'}")
     
     app.run(debug=True, host='0.0.0.0', port=5000)

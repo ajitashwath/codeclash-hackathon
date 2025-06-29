@@ -21,7 +21,6 @@ import { createPortal } from "react-dom";
 interface ToolPanelProps {
   activeTool: string;
   onToolChange: (tool: string) => void;
-  onAlignmentChange: (alignment: "left" | "center" | "right") => void;
   onShapeChange: (shape: "rectangle" | "circle" | "triangle") => void;
   onColorChange: (color: string) => void;
   onFontStyleChange?: (style: "bold" | "italic" | "underline") => void;
@@ -34,7 +33,6 @@ interface ToolPanelProps {
 export default function ToolPanel({
   activeTool,
   onToolChange,
-  onAlignmentChange,
   onShapeChange,
   onColorChange,
   onFontStyleChange,
@@ -58,41 +56,6 @@ export default function ToolPanel({
 
   const [rows, setRows] = React.useState(2);
   const [cols, setCols] = React.useState(2);
-
-  if (activeTool === "alignment") {
-    return createPortal(
-      <div className="absolute left-24 top-32 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg z-[1000]">
-        <h3 className="text-sm font-medium text-white mb-2">Text Alignment</h3>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-white hover:bg-gray-700"
-            onClick={() => onAlignmentChange("left")}
-          >
-            <AlignLeft className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-white hover:bg-gray-700"
-            onClick={() => onAlignmentChange("center")}
-          >
-            <AlignCenter className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-white hover:bg-gray-700"
-            onClick={() => onAlignmentChange("right")}
-          >
-            <AlignRight className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>,
-      document.body
-    );
-  }
 
   if (activeTool === "shape") {
     return createPortal(
@@ -190,37 +153,6 @@ export default function ToolPanel({
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Text Alignment */}
-        <div className="mb-3">
-          <h4 className="text-xs font-medium text-gray-400 mb-2">Alignment</h4>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-white hover:bg-gray-700"
-              onClick={() => onAlignmentChange("left")}
-            >
-              <AlignLeft className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-white hover:bg-gray-700"
-              onClick={() => onAlignmentChange("center")}
-            >
-              <AlignCenter className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-white hover:bg-gray-700"
-              onClick={() => onAlignmentChange("right")}
-            >
-              <AlignRight className="w-4 h-4" />
-            </Button>
-          </div>
         </div>
 
         {/* Text Color */}
