@@ -4,7 +4,7 @@
 
 SlideFlow is a modern, web-based presentation editor that combines traditional slide editing capabilities with advanced AI-powered content generation. Create professional presentations with intelligent assistance, interactive tools, and seamless export options.
 
-![SlideFlow](https://i.ibb.co/nMVgjhkj/Screenshot-2025-06-24-203318.png)
+![SlideFlow](https://i.ibb.co/sdQ8CFp8/Screenshot-2025-06-29-213230.png)
 
 ## ✨ Features
 
