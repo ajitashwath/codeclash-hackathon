@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import google.generativeai as genai
+from google import genai
 import json
 import uuid
 import os
@@ -28,15 +28,14 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"])
 
-# Configure Gemini AI
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
-    logger.info("✅ Gemini AI configured successfully")
+# Configure Gemini AI (Google GenAI)
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if GOOGLE_API_KEY and GOOGLE_API_KEY != 'your_gemini_api_key_here':
+    client = genai.Client()
+    logger.info("✅ Gemini AI client configured successfully")
 else:
-    logger.warning("⚠️ GEMINI_API_KEY not found or not configured")
-    model = None
+    logger.warning("⚠️ GOOGLE_API_KEY not found or not configured")
+    client = None
 
 # In-memory storage for demo (use database in production)
 presentations = {}
@@ -104,8 +103,8 @@ COLOR_THEMES = {
 
 def generate_with_gemini(prompt):
     """Generate content using Gemini AI"""
-    if not model:
-        logger.warning("Gemini model not available, using fallback")
+    if not client:
+        logger.warning("Gemini client not available, using fallback")
         return generate_fallback_content(prompt)
     try:
         enhanced_prompt = f"""
@@ -118,11 +117,19 @@ def generate_with_gemini(prompt):
         - layout_type: Suggested layout (title-content, two-column, image-text, bullet-list)
         Keep the response concise and professional.
         """
-        response = model.generate_content(enhanced_prompt)
-        try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
-            return parse_text_response(response.text, prompt)
+        response = client.models.generate_content(
+            model='gemini-pro',
+            contents=enhanced_prompt
+        )
+        # Ensure response.text is not None before parsing
+        if response.text is not None:
+            try:
+                return json.loads(response.text)
+            except json.JSONDecodeError:
+                return parse_text_response(response.text, prompt)
+        else:
+            logger.error("Gemini API returned no text response.")
+            return generate_fallback_content(prompt)
     except Exception as e:
         logger.error(f"Gemini API error: {str(e)}")
         return generate_fallback_content(prompt)
@@ -369,7 +376,7 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "gemini_configured": model is not None,
+        "gemini_configured": client is not None,
         "pptx_available": PPTX_AVAILABLE,
         "version": "1.0.0"
     })
@@ -534,7 +541,7 @@ if __name__ == '__main__':
     print("🚀 Starting SlideFlow Backend Server...")
     print("📊 Frontend should connect to: http://localhost:5000")
     print("🔗 API endpoints available at: http://localhost:5000/api/")
-    print(f"🤖 Gemini AI: {'✅ Connected' if model else '❌ Not configured'}")
+    print(f"🤖 Gemini AI: {'✅ Connected' if client else '❌ Not configured'}")
     print(f"📄 PPTX Export: {'✅ Available' if PPTX_AVAILABLE else '❌ Not available (install python-pptx)'}")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
