@@ -102,31 +102,40 @@ COLOR_THEMES = {
 }
 
 def generate_with_gemini(prompt):
-    """Generate content using Gemini AI"""
     if not client:
         logger.warning("Gemini client not available, using fallback")
         return generate_fallback_content(prompt)
     try:
-        enhanced_prompt = f"""
-        Create a professional presentation slide based on this request: \"{prompt}\"
-        Respond with a JSON object containing:
-        - title: A clear, engaging slide title
-        - content: Main content summary (2-3 sentences)
-        - bullet_points: Array of 3-5 key points
-        - design_theme: Suggested color theme (professional, creative, modern, minimal)
-        - layout_type: Suggested layout (title-content, two-column, image-text, bullet-list)
-        Keep the response concise and professional.
-        """
+        enhanced_prompt = (
+            f"Create a professional presentation slide based on this request: \"{prompt}\". "
+            "Respond ONLY with a valid JSON object, no explanations or extra text. "
+            "The JSON should have these keys: title, content, bullet_points, design_theme, layout_type. "
+            "Example: "
+            "{ "
+            "  \"title\": \"Your Slide Title\", "
+            "  \"content\": \"A 2-3 sentence summary.\", "
+            "  \"bullet_points\": [\"Point 1\", \"Point 2\", \"Point 3\"], "
+            "  \"design_theme\": \"professional\", "
+            "  \"layout_type\": \"bullet-list\" "
+            "} "
+            "Respond ONLY with the JSON object."
+        )
         response = client.models.generate_content(
             model='gemini-pro',
             contents=enhanced_prompt
         )
-        # Ensure response.text is not None before parsing
+        logger.info(f"Gemini raw response: {getattr(response, 'text', str(response))}")
         if response.text is not None:
-            try:
-                return json.loads(response.text)
-            except json.JSONDecodeError:
-                return parse_text_response(response.text, prompt)
+            text = response.text.strip()
+            if text.startswith('{'):
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError:
+                    logger.error(f"Gemini returned invalid JSON: {text}")
+                    return generate_fallback_content(prompt)
+            else:
+                logger.error(f"Gemini did not return JSON. Raw response: {text}")
+                return generate_fallback_content(prompt)
         else:
             logger.error("Gemini API returned no text response.")
             return generate_fallback_content(prompt)
@@ -135,59 +144,60 @@ def generate_with_gemini(prompt):
         return generate_fallback_content(prompt)
 
 def parse_text_response(text, original_prompt):
-    """Parse text response into structured format"""
     lines = text.strip().split('\n')
-    
-    # Extract title (usually first line or contains "title")
-    title = f"Presentation: {original_prompt}"
+    title = None
     for line in lines[:3]:
         if line.strip() and not line.startswith('-') and not line.startswith('•'):
             title = line.strip()
             break
-    
-    # Extract bullet points
+    if not title:
+        title = f"About {original_prompt.title()}"
     bullet_points = []
     for line in lines:
         if line.strip().startswith('-') or line.strip().startswith('•'):
             bullet_points.append(line.strip().lstrip('-•').strip())
-    
     if not bullet_points:
         bullet_points = [
-            "Key insight from your request",
-            "Important details to highlight", 
-            "Action items or next steps"
+            f"Overview of {original_prompt}",
+            f"Key facts about {original_prompt}",
+            f"Why {original_prompt} matters",
+            f"Recent developments in {original_prompt}",
+            f"What you can do about {original_prompt}"
         ]
-    
+    content = None
+    for line in lines:
+        if (not line.strip().startswith('-') and not line.strip().startswith('•') and line.strip() != title):
+            content = line.strip()
+            break
+    if not content:
+        content = f"This slide provides an overview and key points about {original_prompt}."
     return {
         "title": title,
-        "content": f"This slide covers: {original_prompt}",
-        "bullet_points": bullet_points[:5],  # Limit to 5 points
+        "content": content,
+        "bullet_points": bullet_points[:5],
         "design_theme": "professional",
         "layout_type": "bullet-list"
     }
 
 def generate_fallback_content(prompt):
-    """Generate fallback content when Gemini is unavailable"""
     return {
-        "title": f"Presentation: {prompt}",
-        "content": f"Content overview for: {prompt}",
+        "title": f"About {prompt.title()}",
+        "content": f"This slide provides an overview and key points about {prompt}.",
         "bullet_points": [
-            "Overview of the topic",
-            "Key points to discuss",
-            "Important considerations",
-            "Next steps or conclusions"
+            f"Overview of {prompt}",
+            f"Key facts about {prompt}",
+            f"Why {prompt} matters",
+            f"Recent developments in {prompt}",
+            f"What you can do about {prompt}"
         ],
         "design_theme": "professional",
         "layout_type": "bullet-list"
     }
 
 def convert_to_slide_elements(ai_response, color_theme="blue"):
-    """Convert AI response to frontend slide elements with color theme"""
     elements = []
     y_position = 80
     theme_colors = COLOR_THEMES.get(color_theme, COLOR_THEMES["blue"])
-    
-    # Add title
     elements.append({
         "id": f"title_{uuid.uuid4().hex[:8]}",
         "type": "text",
@@ -203,8 +213,6 @@ def convert_to_slide_elements(ai_response, color_theme="blue"):
         }
     })
     y_position += 100
-    
-    # Add main content if available
     if ai_response.get("content"):
         elements.append({
             "id": f"content_{uuid.uuid4().hex[:8]}",
@@ -221,8 +229,6 @@ def convert_to_slide_elements(ai_response, color_theme="blue"):
             }
         })
         y_position += 100
-    
-    # Add bullet points
     if ai_response.get("bullet_points"):
         bullet_text = "\n".join([f"• {point}" for point in ai_response["bullet_points"]])
         elements.append({
@@ -239,16 +245,13 @@ def convert_to_slide_elements(ai_response, color_theme="blue"):
                 "lineHeight": "1.8"
             }
         })
-    
     return elements
 
 def hex_to_rgb(hex_color):
-    """Convert hex color to RGB tuple"""
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
 def create_enhanced_pptx(slides_data):
-    """Create an enhanced PPTX with better formatting"""
     if not PPTX_AVAILABLE:
         raise ImportError("python-pptx is not available")
     
@@ -313,10 +316,9 @@ def create_enhanced_pptx(slides_data):
                 bullet_elements.extend(bullet_points)
         
         # Add content to placeholder
-        if content_placeholder and hasattr(content_placeholder, 'text_frame'):
-            text_frame = content_placeholder.text_frame
+        text_frame = getattr(content_placeholder, 'text_frame', None)
+        if text_frame is not None:
             text_frame.clear()
-            
             # Add regular text first
             if text_elements:
                 for i, text in enumerate(text_elements):
@@ -327,7 +329,6 @@ def create_enhanced_pptx(slides_data):
                     p.text = text
                     p.font.size = Pt(16)
                     p.space_after = Pt(12)
-            
             # Add bullet points
             if bullet_elements:
                 for i, bullet in enumerate(bullet_elements):
@@ -372,7 +373,6 @@ def create_enhanced_pptx(slides_data):
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),

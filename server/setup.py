@@ -47,7 +47,7 @@ def setup_env_file():
     
     # Create .env file
     env_content = f"""# SlideFlow Backend Environment Configuration
-GEMINI_API_KEY={api_key if api_key else 'your_api_key_here'}
+GOOGLE_API_KEY={api_key if api_key else 'your_api_key_here'}
 FLASK_ENV=development
 FLASK_DEBUG=True
 FLASK_APP=server.py
